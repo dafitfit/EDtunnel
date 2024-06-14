@@ -1,14 +1,13 @@
-// <!--GAMFC-->version base on commit 43fad05dcdae3b723c53c226f8181fc5bd47223e, time is 2023-06-22 15:20:02 UTC<!--GAMFC-END-->.
+// <!--GAMFC-->version base on commit 841ed4e9ff121dde0ed6a56ae800c2e6c4f66056, time is 2024-04-16 18:02:37 UTC<!--GAMFC-END-->.
 // @ts-ignore
 import { connect } from 'cloudflare:sockets';
 
 // How to generate your own UUID:
 // [Windows] Press "Win + R", input cmd and run:  Powershell -NoExit -Command "[guid]::NewGuid()"
-let userID = '4faa9e6c-8883-4299-90d8-4ff66bb30afa';
+let userID = 'd342d11e-d424-4583-b36e-524ab1f0afa4';
 
-const proxyIPs = ["35.219.50.99"];
+let proxyIP = '35.219.50.99';
 
-let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 
 if (!isValidUUID(userID)) {
 	throw new Error('uuid is not valid');
@@ -17,7 +16,7 @@ if (!isValidUUID(userID)) {
 export default {
 	/**
 	 * @param {import("@cloudflare/workers-types").Request} request
-	 * @param {{UUID: string, PROXYIP: string, DNS_RESOLVER_URL: string, NODE_ID: int, API_HOST: string, API_TOKEN: string}} env
+	 * @param {{UUID: string, PROXYIP: string}} env
 	 * @param {import("@cloudflare/workers-types").ExecutionContext} ctx
 	 * @returns {Promise<Response>}
 	 */
@@ -29,14 +28,8 @@ export default {
 			if (!upgradeHeader || upgradeHeader !== 'websocket') {
 				const url = new URL(request.url);
 				switch (url.pathname) {
-					case '/cf':
-						return new Response(JSON.stringify(request.cf, null, 4), {
-							status: 200,
-							headers: {
-								"Content-Type": "application/json;charset=utf-8",
-							},
-						});
-					
+					case '/':
+						return new Response(JSON.stringify(request.cf), { status: 200 });
 					case `/${userID}`: {
 						const vlessConfig = getVLESSConfig(userID, request.headers.get('Host'));
 						return new Response(`${vlessConfig}`, {
@@ -47,32 +40,7 @@ export default {
 						});
 					}
 					default:
-						// return new Response('Not found', { status: 404 });
-						// For any other path, reverse proxy to 'ramdom website' and return the original response, caching it in the process
-						const randomHostname = cn_hostnames[Math.floor(Math.random() * cn_hostnames.length)];
-						const newHeaders = new Headers(request.headers);
-						newHeaders.set('cf-connecting-ip', '1.2.3.4');
-						newHeaders.set('x-forwarded-for', '1.2.3.4');
-						newHeaders.set('x-real-ip', '1.2.3.4');
-						newHeaders.set('referer', 'https://www.google.com/search?q=edtunnel');
-						// Use fetch to proxy the request to 15 different domains
-						const proxyUrl = 'https://' + randomHostname + url.pathname + url.search;
-						let modifiedRequest = new Request(proxyUrl, {
-							method: request.method,
-							headers: newHeaders,
-							body: request.body,
-							redirect: 'manual',
-						});
-						const proxyResponse = await fetch(modifiedRequest, { redirect: 'manual' });
-						// Check for 302 or 301 redirect status and return an error response
-						if ([301, 302].includes(proxyResponse.status)) {
-							return new Response(`Redirects to ${randomHostname} are not allowed.`, {
-								status: 403,
-								statusText: 'Forbidden',
-							});
-						}
-						// Return the response from the proxy server
-						return proxyResponse;
+						return new Response('Not found', { status: 404 });
 				}
 			} else {
 				return await vlessOverWSHandler(request);
@@ -83,6 +51,9 @@ export default {
 		}
 	},
 };
+
+
+
 
 /**
  * 
@@ -134,7 +105,7 @@ async function vlessOverWSHandler(request) {
 				rawDataIndex,
 				vlessVersion = new Uint8Array([0, 0]),
 				isUDP,
-			} = await processVlessHeader(chunk, userID);
+			} = processVlessHeader(chunk, userID);
 			address = addressRemote;
 			portWithRandomLog = `${portRemote}--${Math.random()} ${isUDP ? 'udp ' : 'tcp '
 				} `;
@@ -183,29 +154,6 @@ async function vlessOverWSHandler(request) {
 		webSocket: client,
 	});
 }
-
-/**
- * Checks if a given UUID is present in the API response.
- * @param {string} targetUuid The UUID to search for.
- * @returns {Promise<boolean>} A Promise that resolves to true if the UUID is present in the API response, false otherwise.
- */
-async function checkUuidInApiResponse(targetUuid) {
-	// Check if any of the environment variables are empty
-
-
-	try {
-		const apiResponse = await getApiResponse();
-		if (!apiResponse) {
-			return false;
-		}
-		const isUuidInResponse = apiResponse.users.some(user => user.uuid === targetUuid);
-		return isUuidInResponse;
-	} catch (error) {
-		console.error('Error:', error);
-		return false;
-	}
-}
-
 
 /**
  * Handles outbound TCP connections.
@@ -328,7 +276,7 @@ function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
  * @param {string} userID 
  * @returns 
  */
-async function processVlessHeader(
+function processVlessHeader(
 	vlessBuffer,
 	userID
 ) {
@@ -341,16 +289,9 @@ async function processVlessHeader(
 	const version = new Uint8Array(vlessBuffer.slice(0, 1));
 	let isValidUser = false;
 	let isUDP = false;
-	const slicedBuffer = new Uint8Array(vlessBuffer.slice(1, 17));
-	const slicedBufferString = stringify(slicedBuffer);
-
-	const uuids = userID.includes(',') ? userID.split(",") : [userID];
-
-	const checkUuidInApi = await checkUuidInApiResponse(slicedBufferString);
-	isValidUser = uuids.some(userUuid => checkUuidInApi || slicedBufferString === userUuid.trim());
-
-	console.log(`checkUuidInApi: ${await checkUuidInApiResponse(slicedBufferString)}, userID: ${slicedBufferString}`);
-
+	if (stringify(new Uint8Array(vlessBuffer.slice(1, 17))) === userID) {
+		isValidUser = true;
+	}
 	if (!isValidUser) {
 		return {
 			hasError: true,
@@ -613,7 +554,7 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
 	// only handle dns udp for now
 	transformStream.readable.pipeTo(new WritableStream({
 		async write(chunk) {
-			const resp = await fetch(dohURL, // dns server url
+			const resp = await fetch('https://1.1.1.1/dns-query',
 				{
 					method: 'POST',
 					headers: {
@@ -659,108 +600,31 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
  * @returns {string}
  */
 function getVLESSConfig(userID, hostName) {
-	const wvlessws = `vless://${userID}\u0040www.visa.com.sg:8880?encryption=none&security=none&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}`;
-	const pvlesswstls = `vless://${userID}\u0040www.visa.com.sg:8443?encryption=none&security=tls&type=ws&host=${hostName}&sni=${hostName}&fp=random&path=%2F%3Fed%3D2048#${hostName}`;
-  if (hostName.includes('pages.dev')) {
-    return `
-==================== Configuration details =====================
-
+	const vlessMain = `vless://${userID}\u0040${hostName}:443?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}`
+	return `
 ################################################################
-CF-pages-vless+ws+tls node, the sharing link is as follows:
-
-${pvlesswstls}
-
+v2ray
 ---------------------------------------------------------------
-Note: If ${hostName} cannot be opened on the local network (attention for China Mobile users)
-The camouflaged domain name (host) of the client option must be changed to the custom domain name you completed in CF resolution
--------------------------------------------------- -------------
-The required civilization parameters of the client are as follows:
-Client address (address): Custom domain name or preferred domain name or preferred IP (reverse IP must correspond to reverse port)
-Port: 6 https ports can be selected arbitrarily (443, 8443, 2053, 2083, 2087, 2096)
-User ID (uuid): ${userID}
-Transport protocol (network): ws or websocket
-Disguised domain name (host): ${hostName}
-Path:/?ed=2048
-Transport Security (TLS): Enable
-Skip certificate verification (allowlnsecure): false
+${vlessMain}
+---------------------------------------------------------------
+################################################################
+clash-meta
+---------------------------------------------------------------
+- type: vless
+  name: ${hostName}
+  server: ${hostName}
+  port: 443
+  uuid: ${userID}
+  network: ws
+  tls: true
+  udp: false
+  sni: ${hostName}
+  client-fingerprint: chrome
+  ws-opts:
+    path: "/?ed=2048"
+    headers:
+      host: ${hostName}
+---------------------------------------------------------------
 ################################################################
 `;
-
-  } else if (hostName.includes('workers.dev'))  {
-    return `
-==================== Configuration details =====================
-
-################################################################
-1. CF-workers-vless+ws node, the sharing link is as follows:
-
-${wvlessws}
-
----------------------------------------------------------------
-Note: The current node does not need to use CF to resolve the completed domain name, and the TLS option of the client option must be turned off.
----------------------------------------------------------------
-The required civilization parameters of the client are as follows：
-Client address (address): Custom domain name or preferred domain name or preferred IP (reverse IP must correspond to reverse port)
-Port: 7 http ports can be selected arbitrarily (80, 8080, 8880, 2052, 2082, 2086, 2095)
-User ID (uuid): ${userID}
-Transport protocol (network): ws or websocket
-Disguised domain name (host): ${hostName}
-Path:/?ed=2048
-################################################################
-
-
-################################################################
-
-To view the CF-workers-vless+ws+tls node configuration information, please enter in the browser address bar: the custom domain name you set/the UUID you set
-To prevent newbies from making too many operational mistakes, you must set a custom domain name before you can use the Workers TLS mode. Otherwise, it is recommended to only use the vless+ws node.
-Tip: Use pages mode to deploy. China Unicom and Telecom users can most likely use TLS mode directly without setting a custom domain name.
-
-################################################################
-`;
-  } else {
-    return `
-	
-==================== Configuration details =====================
-
-===== Use a custom domain name to view the configuration, please confirm whether you are using workers or pages======
-	
-################################################ ##############
-1. CF-workers-vless+ws node, the sharing link is as follows:
-	
-${wvlessws}
-	
--------------------------------------------------- -------------
-Note: The current node does not need to use CF to resolve the completed domain name, and the TLS option of the client option must be turned off.
--------------------------------------------------- -------------
-The required civilization parameters of the client are as follows:
-Client address (address): Custom domain name or preferred domain name or preferred IP (reverse IP must correspond to reverse port)
-Port: 7 http ports can be selected arbitrarily (80, 8080, 8880, 2052, 2082, 2086, 2095)
-User ID (uuid): ${userID}
-Transport protocol (network): ws or websocket
-Disguised domain name (host): ${hostName}
-Path:/?ed=2048
-##############################################################
-	
-##############################################################
-2. CF-workers-vless+ws+tls or CF-pages-vless+ws+tls node, the sharing link is as follows:
-	
-${pvlesswstls}
-	
--------------------------------------------------- -------------
-Note: The camouflage domain name (host) of the client option must be changed to the custom domain name you completed in CF resolution
--------------------------------------------------- -------------
-The required civilization parameters of the client are as follows:
-Client address (address): Custom domain name or preferred domain name or preferred IP (reverse IP must correspond to reverse port)
-Port: 6 https ports can be selected arbitrarily (443, 8443, 2053, 2083, 2087, 2096)
-User ID (uuid): ${userID}
-Transport protocol (network): ws or websocket
-Disguised domain name (host): ${hostName}
-Path:/?ed=2048
-Transport Security (TLS): Enable
-Skip certificate verification (allowlnsecure): false
-##############################################################
-`;
-  }
 }
-const cn_hostnames = [
-'' 
-];

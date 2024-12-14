@@ -4,20 +4,6 @@ name = "server-ID" # todo
 #main = "test/worker/worker-connect-test.js"
 main = "_worker.js"
 compatibility_date = "2023-05-26"
-[[routes]]
-pattern = "104.20.75.141.ID.rokettunel.my.id"
-custom_domain = true
-[[routes]]
-pattern = "104.17.2.81.ID.rokettunel.my.id"
-custom_domain = true
-[[routes]]
-pattern = "104.17.3.81.ID.rokettunel.my.id"
-custom_domain = true
-[[routes]]
-pattern = "104.18.56.56.ID.rokettunel.my.id"
-custom_domain = true
-[[routes]]
-pattern = "support.zoom.us.ID.rokettunel.my.id"
 custom_domain = true
 
 [vars]
@@ -27,4 +13,4 @@ custom_domain = true
 # NODE_ID = "1"
 # API_TOKEN = "example_dev_token"
 # API_HOST = "api.v2board.com"
-UUID = "d51ac585-01f9-4e72-b4c5-5bd7b20979de"
+UUID = "01938fc0-8572-742f-bd2f-1077426dd680"
